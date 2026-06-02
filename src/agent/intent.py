@@ -38,6 +38,15 @@ INTENT_KEYWORDS = {
     ],
 }
 
+INTENT_PRIORITY = {
+    Intent.COMPLAINT: 50,
+    Intent.PRICE_NEGOTIATION: 40,
+    Intent.CUSTOM_ORDER: 30,
+    Intent.PRICE_INQUIRY: 20,
+    Intent.AFTER_SALES: 10,
+    Intent.PRODUCT_INQUIRY: 0,
+}
+
 
 def classify_intent(query: str) -> Intent:
     scores: dict[Intent, int] = {}
@@ -49,7 +58,7 @@ def classify_intent(query: str) -> Intent:
     if not scores:
         return Intent.GENERAL
 
-    return max(scores, key=scores.get)
+    return max(scores, key=lambda intent: (scores[intent], INTENT_PRIORITY.get(intent, 0)))
 
 
 def needs_human_handoff(intent: Intent) -> bool:

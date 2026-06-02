@@ -1,9 +1,10 @@
 from datetime import datetime
 
 from sqlalchemy import (
-    BigInteger, Column, DateTime, Index, Integer, String, Text, TinyInteger,
+    BigInteger, Column, DateTime, Index, Integer, String, Text,
     create_engine, select, text,
 )
+from sqlalchemy.dialects.mysql import TINYINT as TinyInteger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 

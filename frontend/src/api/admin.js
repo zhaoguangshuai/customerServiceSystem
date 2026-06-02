@@ -18,6 +18,14 @@ export function createTenant(data) {
   return request.post('/admin/tenants', data)
 }
 
+export function updateTenant(tenantId, data) {
+  return request.put(`/admin/tenants/${tenantId}`, data)
+}
+
+export function deleteTenant(tenantId) {
+  return request.delete(`/admin/tenants/${tenantId}`)
+}
+
 // --- Prompts ---
 export function getPrompt(tenantId) {
   return request.get(`/admin/prompts/${tenantId}`)
@@ -39,6 +47,14 @@ export function listFaqs(tenantId) {
 
 export function createFaq(data) {
   return request.post('/admin/faqs', data)
+}
+
+export function updateFaq(faqId, data) {
+  return request.put(`/admin/faqs/${faqId}`, data)
+}
+
+export function deleteFaq(faqId) {
+  return request.delete(`/admin/faqs/${faqId}`)
 }
 
 // --- Knowledge ---

@@ -115,7 +115,7 @@ class TenantCreate(BaseModel):
 
 
 @router.get("/tenants")
-async def list_tenants():
+async def list_tenants(user=Depends(get_current_user)):
     async with get_session() as session:
         result = await session.execute(select(Tenant))
         tenants = result.scalars().all()
@@ -136,7 +136,7 @@ async def list_tenants():
 
 
 @router.post("/tenants")
-async def create_tenant(body: TenantCreate):
+async def create_tenant(body: TenantCreate, user=Depends(get_current_user)):
     async with get_session() as session:
         existing = await session.execute(
             select(Tenant).where(Tenant.tenant_id == body.tenant_id)
@@ -155,6 +155,50 @@ async def create_tenant(body: TenantCreate):
     return {"code": 200, "msg": "success"}
 
 
+class TenantUpdate(BaseModel):
+    tenant_name: str = None
+    contact: str = None
+    phone: str = None
+    status: int = None
+
+
+@router.put("/tenants/{tenant_id}")
+async def update_tenant(tenant_id: str, body: TenantUpdate, user=Depends(get_current_user)):
+    async with get_session() as session:
+        result = await session.execute(
+            select(Tenant).where(Tenant.tenant_id == tenant_id)
+        )
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="租户不存在")
+
+        if body.tenant_name is not None:
+            tenant.tenant_name = body.tenant_name
+        if body.contact is not None:
+            tenant.contact = body.contact
+        if body.phone is not None:
+            tenant.phone = body.phone
+        if body.status is not None:
+            tenant.status = body.status
+        await session.commit()
+    return {"code": 200, "msg": "success"}
+
+
+@router.delete("/tenants/{tenant_id}")
+async def delete_tenant(tenant_id: str, user=Depends(get_current_user)):
+    async with get_session() as session:
+        result = await session.execute(
+            select(Tenant).where(Tenant.tenant_id == tenant_id)
+        )
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="租户不存在")
+
+        await session.delete(tenant)
+        await session.commit()
+    return {"code": 200, "msg": "success"}
+
+
 # --- Prompt Config ---
 
 class PromptUpdate(BaseModel):
@@ -162,7 +206,7 @@ class PromptUpdate(BaseModel):
 
 
 @router.get("/prompts/{tenant_id}")
-async def get_prompt(tenant_id: str):
+async def get_prompt(tenant_id: str, user=Depends(get_current_user)):
     async with get_session() as session:
         result = await session.execute(
             select(PromptConfig).where(PromptConfig.tenant_id == tenant_id)
@@ -174,7 +218,7 @@ async def get_prompt(tenant_id: str):
 
 
 @router.put("/prompts/{tenant_id}")
-async def update_prompt(tenant_id: str, body: PromptUpdate):
+async def update_prompt(tenant_id: str, body: PromptUpdate, user=Depends(get_current_user)):
     async with get_session() as session:
         result = await session.execute(
             select(PromptConfig).where(PromptConfig.tenant_id == tenant_id)
@@ -211,6 +255,7 @@ async def list_chat_logs(
     keyword: str = None,
     page: int = 1,
     page_size: int = 20,
+    user=Depends(get_current_user),
 ):
     async with get_session() as session:
         base_q = select(ChatLog)
@@ -274,7 +319,7 @@ class FAQCreate(BaseModel):
 
 
 @router.get("/faqs")
-async def list_faqs(tenant_id: str):
+async def list_faqs(tenant_id: str, user=Depends(get_current_user)):
     async with get_session() as session:
         result = await session.execute(
             select(FAQ).where(FAQ.tenant_id == tenant_id).order_by(FAQ.sort.desc())
@@ -296,7 +341,7 @@ async def list_faqs(tenant_id: str):
 
 
 @router.post("/faqs")
-async def create_faq(body: FAQCreate):
+async def create_faq(body: FAQCreate, user=Depends(get_current_user)):
     async with get_session() as session:
         faq = FAQ(
             tenant_id=body.tenant_id,
@@ -306,6 +351,46 @@ async def create_faq(body: FAQCreate):
             sort=body.sort,
         )
         session.add(faq)
+        await session.commit()
+    return {"code": 200, "msg": "success"}
+
+
+class FAQUpdate(BaseModel):
+    title: str = None
+    answer: str = None
+    category: str = None
+    sort: int = None
+
+
+@router.put("/faqs/{faq_id}")
+async def update_faq(faq_id: int, body: FAQUpdate, user=Depends(get_current_user)):
+    async with get_session() as session:
+        result = await session.execute(select(FAQ).where(FAQ.id == faq_id))
+        faq = result.scalar_one_or_none()
+        if not faq:
+            raise HTTPException(status_code=404, detail="FAQ不存在")
+
+        if body.title is not None:
+            faq.title = body.title
+        if body.answer is not None:
+            faq.answer = body.answer
+        if body.category is not None:
+            faq.category = body.category
+        if body.sort is not None:
+            faq.sort = body.sort
+        await session.commit()
+    return {"code": 200, "msg": "success"}
+
+
+@router.delete("/faqs/{faq_id}")
+async def delete_faq(faq_id: int, user=Depends(get_current_user)):
+    async with get_session() as session:
+        result = await session.execute(select(FAQ).where(FAQ.id == faq_id))
+        faq = result.scalar_one_or_none()
+        if not faq:
+            raise HTTPException(status_code=404, detail="FAQ不存在")
+
+        await session.delete(faq)
         await session.commit()
     return {"code": 200, "msg": "success"}
 
@@ -328,6 +413,7 @@ async def list_reviews(
     review_status: str = None,
     page: int = 1,
     page_size: int = 20,
+    user=Depends(get_current_user),
 ):
     async with get_session() as session:
         base_q = select(ChatLog)
@@ -412,7 +498,7 @@ async def flag_review(log_id: int, body: FlagRequest, user=Depends(get_current_u
 
 
 @router.get("/reviews/stats")
-async def review_stats(tenant_id: str = None):
+async def review_stats(tenant_id: str = None, user=Depends(get_current_user)):
     async with get_session() as session:
         base = select(ChatLog)
         if tenant_id:
@@ -451,7 +537,7 @@ async def review_stats(tenant_id: str = None):
 
 
 @router.get("/statistics")
-async def get_statistics(tenant_id: str = None, start_date: str = None, end_date: str = None):
+async def get_statistics(tenant_id: str = None, start_date: str = None, end_date: str = None, user=Depends(get_current_user)):
     async with get_session() as session:
         # Tenant count
         tenant_q = select(func.count()).select_from(Tenant)

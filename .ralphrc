@@ -23,7 +23,7 @@ CLAUDE_OUTPUT_FORMAT="json"
 # Tool permissions
 # Comma-separated list of allowed tools
 # Safe git subcommands only - broad Bash(git *) allows destructive commands like git clean/git rm (Issue #149)
-ALLOWED_TOOLS="Write,Read,Edit,Bash(find *),Bash(mkdir -p *),Bash(ls *),Bash(cat *),Bash(sed *),Bash(python -c *),Bash(python3 -c *),Bash(git add *),Bash(git commit *),Bash(git diff *),Bash(git log *),Bash(git status),Bash(git status *),Bash(git push *),Bash(git pull *),Bash(git fetch *),Bash(git checkout *),Bash(git branch *),Bash(git stash *),Bash(git merge *),Bash(git tag *),Bash(npm *),Bash(pytest)"
+ALLOWED_TOOLS="Write,Read,Edit,Bash(find *),Bash(mkdir -p *),Bash(ls *),Bash(cat *),Bash(sed *),Bash(tail *),Bash(grep *),Bash(pip install *),Bash(pip3 install *),Bash(pip3 list *),Bash(python -c *),Bash(python -m pytest *),Bash(python3 -c *),Bash(python3 -m pip *),Bash(python3 -m pytest *),Bash(.venv/bin/python -m pytest *),Bash(.venv/bin/pip install *),Bash(source .venv/bin/activate *),Bash(source .venv/bin/activate*),Bash(. .venv/bin/activate *),Bash(. .venv/bin/activate*),Bash(pytest),Bash(pytest *),Bash(git add *),Bash(git commit *),Bash(git diff *),Bash(git log *),Bash(git status),Bash(git status *),Bash(git push *),Bash(git pull *),Bash(git fetch *),Bash(git checkout *),Bash(git branch *),Bash(git stash *),Bash(git merge *),Bash(git tag *),Bash(git reset HEAD *),Bash(npm *)"
 
 # Session management
 SESSION_CONTINUITY=true

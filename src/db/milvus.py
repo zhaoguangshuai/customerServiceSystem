@@ -1,13 +1,36 @@
-from pymilvus import (
-    Collection,
-    CollectionSchema,
-    DataType,
-    FieldSchema,
-    connections,
-    utility,
-)
+import logging
 
 from src.config import Settings
+
+logger = logging.getLogger(__name__)
+Collection = CollectionSchema = DataType = FieldSchema = connections = utility = None
+
+
+def _load_pymilvus():
+    """Import pymilvus lazily so tests can import the app without Milvus runtime setup."""
+    global Collection, CollectionSchema, DataType, FieldSchema, connections, utility
+    if connections is not None:
+        return
+    from pymilvus import (
+        Collection as _Collection,
+        CollectionSchema as _CollectionSchema,
+        DataType as _DataType,
+        FieldSchema as _FieldSchema,
+        connections as _connections,
+        utility as _utility,
+    )
+
+    Collection = _Collection
+    CollectionSchema = _CollectionSchema
+    DataType = _DataType
+    FieldSchema = _FieldSchema
+    connections = _connections
+    utility = _utility
+
+
+def _escape_milvus_value(value: str) -> str:
+    """Escape special characters in Milvus filter expression values."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 class MilvusClient:
@@ -16,12 +39,18 @@ class MilvusClient:
         self._connect()
 
     def _connect(self):
-        connections.connect(
-            alias="default",
-            uri=self.settings.milvus_uri,
-            user=self.settings.milvus_user or None,
-            password=self.settings.milvus_password or None,
-        )
+        try:
+            _load_pymilvus()
+            connections.connect(
+                alias="default",
+                uri=self.settings.milvus_uri,
+                user=self.settings.milvus_user or None,
+                password=self.settings.milvus_password or None,
+            )
+            logger.info("Connected to Milvus at %s", self.settings.milvus_uri)
+        except Exception:
+            logger.exception("Failed to connect to Milvus at %s", self.settings.milvus_uri)
+            raise
 
     def init_collections(self):
         self._init_knowledge_collection()
@@ -93,12 +122,13 @@ class MilvusClient:
     def search_knowledge(
         self, tenant_id: str, query_embedding: list[float], top_k: int = 3
     ) -> list[dict]:
+        safe_tid = _escape_milvus_value(tenant_id)
         results = self.knowledge_col.search(
             data=[query_embedding],
             anns_field="embedding",
             param={"metric_type": "COSINE", "params": {"nprobe": 16}},
             limit=top_k,
-            expr=f'tenant_id == "{tenant_id}"',
+            expr=f'tenant_id == "{safe_tid}"',
             output_fields=["content", "category", "source"],
         )
         hits = []
@@ -120,12 +150,14 @@ class MilvusClient:
         query_embedding: list[float],
         top_k: int = 5,
     ) -> list[dict]:
+        safe_tid = _escape_milvus_value(tenant_id)
+        safe_uid = _escape_milvus_value(user_id)
         results = self.memory_col.search(
             data=[query_embedding],
             anns_field="embedding",
             param={"metric_type": "COSINE", "params": {"nprobe": 16}},
             limit=top_k,
-            expr=f'tenant_id == "{tenant_id}" && user_id == "{user_id}"',
+            expr=f'tenant_id == "{safe_tid}" && user_id == "{safe_uid}"',
             output_fields=["content", "session_id", "created_at"],
         )
         hits = []
@@ -151,6 +183,7 @@ class MilvusClient:
         self.knowledge_col.insert(
             [[tenant_id], [category], [content], [source], [embedding]]
         )
+        self.knowledge_col.flush()
 
     def batch_insert_knowledge(
         self,
@@ -163,6 +196,7 @@ class MilvusClient:
         self.knowledge_col.insert(
             [tenant_ids, categories, contents, sources, embeddings]
         )
+        self.knowledge_col.flush()
 
     def insert_memory(
         self,
@@ -183,9 +217,18 @@ class MilvusClient:
                 [created_at],
             ]
         )
+        self.memory_col.flush()
 
-    def delete_knowledge_by_tenant(self, tenant_id: str):
-        self.knowledge_col.delete(f'tenant_id == "{tenant_id}"')
+    def delete_knowledge_by_doc_ids(self, tenant_id: str, doc_sources: list[str]):
+        """Delete knowledge vectors by tenant_id and source filenames."""
+        if not doc_sources:
+            return
+        safe_tid = _escape_milvus_value(tenant_id)
+        sources_expr = ", ".join(f'"{_escape_milvus_value(s)}"' for s in doc_sources)
+        self.knowledge_col.delete(
+            f'tenant_id == "{safe_tid}" && source in [{sources_expr}]'
+        )
+        logger.info("Deleted %d knowledge vectors for tenant=%s", len(doc_sources), tenant_id)
 
     def check_health(self) -> dict:
         """Check Milvus connectivity. Returns {"status": "ok"/"error", "detail": ...}."""

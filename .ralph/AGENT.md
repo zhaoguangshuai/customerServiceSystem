@@ -99,14 +99,22 @@ python3 run_wechat_listener.py --interactive
 | DELETE | `/api/v1/jewelry/knowledge/{doc_id}` | Delete knowledge document |
 | POST | `/api/v1/admin/login` | Admin login (returns JWT) |
 | GET | `/api/v1/admin/me` | Get current user info (JWT required) |
-| GET | `/api/v1/admin/tenants` | List tenants |
-| POST | `/api/v1/admin/tenants` | Create tenant |
-| GET | `/api/v1/admin/prompts/{tenant_id}` | Get prompt config |
-| PUT | `/api/v1/admin/prompts/{tenant_id}` | Update prompt config |
-| GET | `/api/v1/admin/chat-logs` | List chat logs |
-| GET | `/api/v1/admin/faqs` | List FAQs |
-| POST | `/api/v1/admin/faqs` | Create FAQ |
-| GET | `/api/v1/admin/statistics` | Dashboard statistics |
+| GET | `/api/v1/admin/tenants` | List tenants (JWT required) |
+| POST | `/api/v1/admin/tenants` | Create tenant (JWT required) |
+| PUT | `/api/v1/admin/tenants/{tenant_id}` | Update tenant (JWT required) |
+| DELETE | `/api/v1/admin/tenants/{tenant_id}` | Delete tenant (JWT required) |
+| GET | `/api/v1/admin/prompts/{tenant_id}` | Get prompt config (JWT required) |
+| PUT | `/api/v1/admin/prompts/{tenant_id}` | Update prompt config (JWT required) |
+| GET | `/api/v1/admin/chat-logs` | List chat logs (JWT required) |
+| GET | `/api/v1/admin/faqs` | List FAQs (JWT required) |
+| POST | `/api/v1/admin/faqs` | Create FAQ (JWT required) |
+| PUT | `/api/v1/admin/faqs/{faq_id}` | Update FAQ (JWT required) |
+| DELETE | `/api/v1/admin/faqs/{faq_id}` | Delete FAQ (JWT required) |
+| GET | `/api/v1/admin/statistics` | Dashboard statistics (JWT required) |
+| GET | `/api/v1/admin/reviews` | List quality reviews (JWT required) |
+| PUT | `/api/v1/admin/reviews/{log_id}` | Submit review (JWT required) |
+| PUT | `/api/v1/admin/reviews/{log_id}/flag` | Flag review (JWT required) |
+| GET | `/api/v1/admin/reviews/stats` | Review statistics (JWT required) |
 | GET | `/health` | Liveness check (always 200) |
 | GET | `/readiness` | Readiness probe (checks MySQL/Redis/Milvus) |
 

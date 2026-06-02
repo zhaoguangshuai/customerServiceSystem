@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -18,6 +20,8 @@ from src.db.redis import (
     is_manual_locked,
 )
 from src.utils.embedding import get_embedding
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SYSTEM_PROMPT = """你是珠宝行业专业AI客服，严格遵守以下规则：
 
@@ -115,11 +119,13 @@ class DeerFlowAgent:
     async def _load_memory(self, state: ChatState) -> dict:
         try:
             query_embedding = await get_embedding(state.query)
-            memory_results = self.milvus.search_memory(
-                state.tenant_id, state.user_id, query_embedding, top_k=3
+            memory_results = await asyncio.to_thread(
+                self.milvus.search_memory,
+                state.tenant_id, state.user_id, query_embedding, top_k=3,
             )
             return {"memory_results": memory_results, "query_embedding": query_embedding}
         except Exception:
+            logger.exception("Failed to load user memory for tenant=%s user=%s", state.tenant_id, state.user_id)
             return {"memory_results": []}
 
     async def _intent_recognize(self, state: ChatState) -> dict:
@@ -148,12 +154,14 @@ class DeerFlowAgent:
             query_embedding = state.query_embedding
             if query_embedding is None:
                 query_embedding = await get_embedding(state.query)
-            knowledge_results = self.milvus.search_knowledge(
-                state.tenant_id, query_embedding, top_k=3
+            knowledge_results = await asyncio.to_thread(
+                self.milvus.search_knowledge,
+                state.tenant_id, query_embedding, top_k=3,
             )
             sources = [r["source"] for r in knowledge_results]
             return {"knowledge_results": knowledge_results, "sources": sources}
         except Exception:
+            logger.exception("Failed to search knowledge for tenant=%s", state.tenant_id)
             return {"knowledge_results": []}
 
     async def _generate_answer(self, state: ChatState) -> dict:
@@ -192,6 +200,7 @@ class DeerFlowAgent:
             used_tokens = response.usage.total_tokens if response.usage else 0
             return {"answer": answer, "used_tokens": used_tokens}
         except Exception:
+            logger.exception("LLM call failed for tenant=%s", state.tenant_id)
             return {"answer": HANDOFF_MESSAGE, "need_manual": True, "manual_reason": "LLM调用失败"}
 
     async def _write_log(self, state: ChatState) -> dict:
@@ -212,7 +221,7 @@ class DeerFlowAgent:
                 session.add(log)
                 await session.commit()
         except Exception:
-            pass
+            logger.exception("Failed to write chat log for tenant=%s user=%s", state.tenant_id, state.user_id)
 
         key = f"{state.tenant_id}:{state.user_id}:{state.session_id}"
         history = state.chat_history + [
@@ -226,7 +235,8 @@ class DeerFlowAgent:
         try:
             content = f"用户: {state.query}\n客服: {state.answer}"
             embedding = await get_embedding(content)
-            self.milvus.insert_memory(
+            await asyncio.to_thread(
+                self.milvus.insert_memory,
                 tenant_id=state.tenant_id,
                 user_id=state.user_id,
                 session_id=state.session_id,
@@ -235,7 +245,7 @@ class DeerFlowAgent:
                 created_at=int(time.time()),
             )
         except Exception:
-            pass
+            logger.exception("Failed to store memory for tenant=%s user=%s", state.tenant_id, state.user_id)
         return {}
 
     async def _get_system_prompt(self, tenant_id: str) -> str:
@@ -246,7 +256,7 @@ class DeerFlowAgent:
                 if cached:
                     return cached
         except Exception:
-            pass
+            logger.debug("Redis prompt cache miss for tenant=%s", tenant_id)
 
         try:
             async with get_session() as session:
@@ -260,10 +270,10 @@ class DeerFlowAgent:
                         if r:
                             await r.setex(f"prompt:{tenant_id}", 3600, config.system_prompt)
                     except Exception:
-                        pass
+                        logger.debug("Failed to cache prompt for tenant=%s", tenant_id)
                     return config.system_prompt
         except Exception:
-            pass
+            logger.warning("Failed to load prompt config for tenant=%s, using default", tenant_id)
 
         return DEFAULT_SYSTEM_PROMPT
 

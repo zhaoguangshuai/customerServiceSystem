@@ -26,6 +26,14 @@
 - [x] Monitoring and alerting: Health checks (/health liveness, /readiness with MySQL/Redis/Milvus checks)
 - [x] Performance optimization: Embedding batch processing, query result caching
 
+## Security & CRUD Improvements (New)
+- [x] JWT auth on all admin endpoints: tenants, prompts, chat-logs, faqs, statistics, reviews
+- [x] Tenant CRUD: add PUT /admin/tenants/{tenant_id} and DELETE /admin/tenants/{tenant_id}
+- [x] FAQ CRUD: add PUT /admin/faqs/{faq_id} and DELETE /admin/faqs/{faq_id}
+- [x] Frontend: TenantView edit/delete with dialog and popconfirm
+- [x] Frontend: FaqView edit/delete with dialog and popconfirm
+- [x] Frontend: admin.js API functions for updateTenant, deleteTenant, updateFaq, deleteFaq
+
 ## Completed
 - [x] Project initialization
 - [x] PRD analysis and Ralph configuration
@@ -52,6 +60,19 @@
 - [x] Config/Settings tests (test_config.py) - 5 test cases
 - [x] Chat API validation tests (test_chat_api.py) - 8 test cases
 - [x] Admin JWT auth tests (test_admin_auth.py) - 7 test cases
+
+## Production Readiness Fixes
+- [x] Add logging infrastructure: replace silent exception swallowing with proper log statements in deerflow.py
+- [x] Wrap synchronous Milvus calls in asyncio.to_thread to avoid blocking the event loop
+- [x] Fix cache key collision: include session_id in cache key, switch from MD5 to SHA-256
+- [x] Add query.strip() validation to reject whitespace-only queries
+- [x] Add error handling around agent.chat() in chat.py endpoint
+- [x] Fix multi-tenant auth bypass: add tenant_id check on knowledge delete endpoint
+- [x] Actually delete Milvus vectors when removing knowledge documents
+- [x] Sanitize Milvus filter expressions to prevent injection via special characters
+- [x] Add flush() calls after Milvus inserts for immediate searchability
+- [x] Add file type allowlist validation on knowledge upload
+- [x] Add error logging on Milvus connection failure
 
 ## Notes
 - **CRITICAL**: Only Phase 1 (WeChat private domain). No Douyin/Taobao/Kuaishou/Xiaohongshu code.
