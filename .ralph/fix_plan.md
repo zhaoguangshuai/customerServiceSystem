@@ -45,6 +45,14 @@
 - [x] Chat log UI: detail dialog, intent column, date range picker, keyword search
 - [x] Quality inspection: Review fields (status/score/comment), review/flag endpoints, quality review UI with scoring and flagging
 
+## Testing (New)
+- [x] Intent classification tests (test_intent.py) - 13 test cases
+- [x] Risk control tests (test_risk_control.py) - 18 test cases
+- [x] Document loader tests (test_document_loader.py) - 9 test cases
+- [x] Config/Settings tests (test_config.py) - 5 test cases
+- [x] Chat API validation tests (test_chat_api.py) - 8 test cases
+- [x] Admin JWT auth tests (test_admin_auth.py) - 7 test cases
+
 ## Notes
 - **CRITICAL**: Only Phase 1 (WeChat private domain). No Douyin/Taobao/Kuaishou/Xiaohongshu code.
 - Channel is always "wechat" - no other values supported.
