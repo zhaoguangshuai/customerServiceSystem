@@ -1,158 +1,218 @@
 # Agent Build Instructions
 
 ## Project Setup
-```bash
-# Install dependencies (example for Node.js project)
-npm install
 
-# Or for Python project
+### Prerequisites
+- Python 3.11+
+- Docker & Docker Compose
+- MySQL 8.0
+- Redis 7+
+- Milvus 2.4+
+
+### Local Development
+
+```bash
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 
-# Or for Rust project  
-cargo build
+# Copy env file and configure
+cp .env.example .env
+# Edit .env with your API keys and database credentials
 ```
 
-## Running Tests
+### Docker Deployment
+
 ```bash
-# Node.js
-npm test
+# Build and start all services
+docker-compose up -d --build
 
-# Python
-pytest
+# Check service status
+docker-compose ps
 
-# Rust
-cargo test
+# View logs
+docker-compose logs -f app
 ```
 
-## Build Commands
+### Running the API Server
+
 ```bash
-# Production build
-npm run build
-# or
-cargo build --release
+# Development
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+
+# Production
+uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
-## Development Server
+### Running the Frontend (Development)
+
 ```bash
-# Start development server
+cd frontend
+npm install
 npm run dev
-# or
-cargo run
+# Frontend runs on http://localhost:3000, proxies /api to backend on :8000
+```
+
+### Building Frontend for Production
+
+```bash
+cd frontend
+npm run build
+# Output in frontend/dist/ - served automatically by FastAPI
+```
+
+### Running the WeChat Listener (Windows Only)
+
+```bash
+# Requires: Windows + WeChat desktop running + wxauto installed
+pip install wxauto
+
+# Option 1: Configure targets in .env, then run
+python3 run_wechat_listener.py
+
+# Option 2: Add targets interactively
+python3 run_wechat_listener.py --interactive
+```
+
+**Environment variables for WeChat listener:**
+- `WECHAT_API_URL` - FastAPI server URL (default: http://localhost:8000)
+- `WECHAT_POLL_INTERVAL` - Seconds between message checks (default: 2)
+- `WECHAT_MAX_RESPONSE_LEN` - Max AI response length (default: 500)
+- `WECHAT_WATCH_TARGETS` - Comma-separated "chat_name:tenant_id:user_id" entries
+
+### Default Admin Login
+
+- Username: `admin`
+- Password: `admin123`
+- Auto-created on first app startup
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/jewelry/chat` | Unified chat API (WeChat only) |
+| POST | `/api/v1/jewelry/knowledge/upload` | Upload knowledge document |
+| GET | `/api/v1/jewelry/knowledge/list` | List knowledge documents |
+| DELETE | `/api/v1/jewelry/knowledge/{doc_id}` | Delete knowledge document |
+| POST | `/api/v1/admin/login` | Admin login (returns JWT) |
+| GET | `/api/v1/admin/me` | Get current user info (JWT required) |
+| GET | `/api/v1/admin/tenants` | List tenants |
+| POST | `/api/v1/admin/tenants` | Create tenant |
+| GET | `/api/v1/admin/prompts/{tenant_id}` | Get prompt config |
+| PUT | `/api/v1/admin/prompts/{tenant_id}` | Update prompt config |
+| GET | `/api/v1/admin/chat-logs` | List chat logs |
+| GET | `/api/v1/admin/faqs` | List FAQs |
+| POST | `/api/v1/admin/faqs` | Create FAQ |
+| GET | `/api/v1/admin/statistics` | Dashboard statistics |
+| GET | `/health` | Liveness check (always 200) |
+| GET | `/readiness` | Readiness probe (checks MySQL/Redis/Milvus) |
+
+### Database Initialization
+
+```bash
+# MySQL tables are auto-created via docker-compose init script
+# Or manually:
+mysql -u root -p < src/migrations/init.sql
+```
+
+### Milvus Collections
+
+Auto-initialized on app startup:
+- `jewelry_knowledge` - Knowledge base vectors (1536 dim)
+- `user_chat_memory` - User conversation vectors (1536 dim)
+
+## Project Structure
+
+```
+src/
+├── main.py                 # FastAPI app entry point
+├── config.py               # Settings from .env
+├── api/
+│   ├── chat.py             # POST /api/v1/jewelry/chat
+│   ├── knowledge.py        # Knowledge document CRUD + upload
+│   └── admin.py            # Admin API (auth, tenants, prompts, logs, FAQ, stats)
+├── agent/
+│   ├── deerflow.py         # DeerFlow pipeline (LangGraph 12-step flow)
+│   ├── intent.py           # Intent recognition
+│   └── risk_control.py     # Risk control rules
+├── db/
+│   ├── mysql.py            # SQLAlchemy models + session management
+│   ├── milvus.py           # Milvus client wrapper
+│   └── redis.py            # Redis caching utilities
+├── utils/
+│   ├── embedding.py        # OpenAI embedding API wrapper
+│   └── document_loader.py  # PDF/Word/Excel/Markdown loader
+├── wechat/
+│   ├── __init__.py
+│   ├── client.py           # wxauto WeChat desktop client wrapper
+│   └── listener.py         # Message listener bridge to chat API
+└── migrations/
+    └── init.sql            # MySQL schema initialization
+
+frontend/
+├── package.json            # Vue3 + Element Plus + Vite
+├── vite.config.js          # Dev server with API proxy
+├── index.html
+└── src/
+    ├── main.js             # App entry
+    ├── App.vue
+    ├── api/admin.js        # API service layer (axios)
+    ├── utils/
+    │   ├── request.js      # Axios instance with JWT interceptor
+    │   └── auth.js         # Pinia auth store
+    ├── router/index.js     # Vue Router with auth guards
+    ├── components/
+    │   └── AdminLayout.vue # Sidebar + header layout
+    └── views/
+        ├── login/LoginView.vue
+        ├── dashboard/DashboardView.vue
+        ├── tenant/TenantView.vue
+        ├── knowledge/KnowledgeView.vue
+        ├── prompt/PromptView.vue
+        ├── chatlog/ChatLogView.vue
+        └── faq/FaqView.vue
 ```
 
 ## Key Learnings
-- Update this section when you learn new build optimizations
-- Document any gotchas or special setup requirements
-- Keep track of the fastest test/build cycle
+
+- LangGraph nodes should return dicts (partial state updates), not full state objects
+- Milvus IVF_FLAT index with COSINE metric works well for 1536-dim embeddings
+- Redis caching for session context (10 rounds) and prompt config (1hr TTL)
+- Document chunking: 500 chars with 50 char overlap for knowledge base
+
+## Performance Optimizations
+
+- **Embedding cache**: Redis-based cache (1hr TTL) for embedding vectors, keyed by MD5 hash of input text. Avoids recomputing embeddings for identical queries.
+- **Query result cache**: Redis-based cache (5min TTL) for chat API responses. Caches non-handoff results keyed by tenant_id + query hash. Skips cache for handoff/manual-lock scenarios.
+- **Batch embedding**: `get_embeddings()` checks cache per-text first, then batch-computes only uncached embeddings in a single API call.
+- **Milvus batch insert**: Knowledge documents are inserted in a single batch call instead of one-by-one per chunk.
 
 ## Feature Development Quality Standards
-
-**CRITICAL**: All new features MUST meet the following mandatory requirements before being considered complete.
 
 ### Testing Requirements
 
 - **Minimum Coverage**: 85% code coverage ratio required for all new code
-- **Test Pass Rate**: 100% - all tests must pass, no exceptions
+- **Test Pass Rate**: 100% - all tests must pass
 - **Test Types Required**:
   - Unit tests for all business logic and services
-  - Integration tests for API endpoints or main functionality
+  - Integration tests for API endpoints
   - End-to-end tests for critical user workflows
-- **Coverage Validation**: Run coverage reports before marking features complete:
-  ```bash
-  # Examples by language/framework
-  npm run test:coverage
-  pytest --cov=src tests/ --cov-report=term-missing
-  cargo tarpaulin --out Html
-  ```
-- **Test Quality**: Tests must validate behavior, not just achieve coverage metrics
-- **Test Documentation**: Complex test scenarios must include comments explaining the test strategy
 
 ### Git Workflow Requirements
-
-Before moving to the next feature, ALL changes must be:
 
 1. **Committed with Clear Messages**:
    ```bash
    git add .
    git commit -m "feat(module): descriptive message following conventional commits"
    ```
-   - Use conventional commit format: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, etc.
-   - Include scope when applicable: `feat(api):`, `fix(ui):`, `test(auth):`
-   - Write descriptive messages that explain WHAT changed and WHY
 
-2. **Pushed to Remote Repository**:
-   ```bash
-   git push origin <branch-name>
-   ```
-   - Never leave completed features uncommitted
-   - Push regularly to maintain backup and enable collaboration
-   - Ensure CI/CD pipelines pass before considering feature complete
+2. **Branch Hygiene**:
+   - Work on feature branches, not directly on `main`
+   - Branch naming: `feature/<name>`, `fix/<name>`, `docs/<name>`
 
-3. **Branch Hygiene**:
-   - Work on feature branches, never directly on `main`
-   - Branch naming convention: `feature/<feature-name>`, `fix/<issue-name>`, `docs/<doc-update>`
-   - Create pull requests for all significant changes
-
-4. **Ralph Integration**:
-   - Update .ralph/fix_plan.md with new tasks before starting work
+3. **Ralph Integration**:
+   - Update .ralph/fix_plan.md with new tasks before starting
    - Mark items complete in .ralph/fix_plan.md upon completion
-   - Update .ralph/PROMPT.md if development patterns change
-   - Test features work within Ralph's autonomous loop
-
-### Documentation Requirements
-
-**ALL implementation documentation MUST remain synchronized with the codebase**:
-
-1. **Code Documentation**:
-   - Language-appropriate documentation (JSDoc, docstrings, etc.)
-   - Update inline comments when implementation changes
-   - Remove outdated comments immediately
-
-2. **Implementation Documentation**:
-   - Update relevant sections in this AGENT.md file
-   - Keep build and test commands current
-   - Update configuration examples when defaults change
-   - Document breaking changes prominently
-
-3. **README Updates**:
-   - Keep feature lists current
-   - Update setup instructions when dependencies change
-   - Maintain accurate command examples
-   - Update version compatibility information
-
-4. **AGENT.md Maintenance**:
-   - Add new build patterns to relevant sections
-   - Update "Key Learnings" with new insights
-   - Keep command examples accurate and tested
-   - Document new testing patterns or quality gates
-
-### Feature Completion Checklist
-
-Before marking ANY feature as complete, verify:
-
-- [ ] All tests pass with appropriate framework command
-- [ ] Code coverage meets 85% minimum threshold
-- [ ] Coverage report reviewed for meaningful test quality
-- [ ] Code formatted according to project standards
-- [ ] Type checking passes (if applicable)
-- [ ] All changes committed with conventional commit messages
-- [ ] All commits pushed to remote repository
-- [ ] .ralph/fix_plan.md task marked as complete
-- [ ] Implementation documentation updated
-- [ ] Inline code comments updated or added
-- [ ] .ralph/AGENT.md updated (if new patterns introduced)
-- [ ] Breaking changes documented
-- [ ] Features tested within Ralph loop (if applicable)
-- [ ] CI/CD pipeline passes
-
-### Rationale
-
-These standards ensure:
-- **Quality**: High test coverage and pass rates prevent regressions
-- **Traceability**: Git commits and .ralph/fix_plan.md provide clear history of changes
-- **Maintainability**: Current documentation reduces onboarding time and prevents knowledge loss
-- **Collaboration**: Pushed changes enable team visibility and code review
-- **Reliability**: Consistent quality gates maintain production stability
-- **Automation**: Ralph integration ensures continuous development practices
-
-**Enforcement**: AI agents should automatically apply these standards to all feature development tasks without requiring explicit instruction for each task.

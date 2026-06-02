@@ -30,9 +30,18 @@ Thumbs.db
 # Node modules (if using Node.js projects)
 node_modules/
 
-# Python cache (if using Python projects)
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+.env
 
 # Rust build (if using Rust projects)
 target/
@@ -42,6 +51,12 @@ target/
 .idea/
 *.swp
 *.swo
+
+# Ralph session/temp files
+.ralph/.loop_start_sha
+.ralph/.token_count
+.ralph/progress.json
+.ralph/specs/
 
 # Ralph backup directories (created by migration)
 .ralph_backup_*
