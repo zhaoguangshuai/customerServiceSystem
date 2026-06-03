@@ -75,7 +75,7 @@ async def list_knowledge(tenant_id: str, category: str = None):
     async with get_session() as session:
         from sqlalchemy import select
 
-        query = select(KnowledgeDocument).where(KnowledgeDocument.tenant_id == tenant_id)
+        query = select(KnowledgeDocument).where(KnowledgeDocument.tenant_id == tenant_id, KnowledgeDocument.status == 1)
         if category:
             query = query.where(KnowledgeDocument.category == category)
         result = await session.execute(query)

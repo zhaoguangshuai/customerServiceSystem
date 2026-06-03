@@ -28,6 +28,7 @@ import logging
 import sys
 
 from src.wechat.listener import WeChatListener, WeChatListenerConfig
+from src.wechat.mock_client import MockWeChatClient
 
 logging.basicConfig(
     level=logging.INFO,
@@ -88,6 +89,17 @@ def main():
         default=None,
         help="Poll interval in seconds (overrides WECHAT_POLL_INTERVAL env)",
     )
+    parser.add_argument(
+        "--mock", "-m",
+        action="store_true",
+        help="Use terminal-based mock client instead of wxauto (for macOS/Linux testing)",
+    )
+    parser.add_argument(
+        "--chat-name",
+        type=str,
+        default="测试客户",
+        help="Default chat name for mock mode (default: 测试客户)",
+    )
     args = parser.parse_args()
 
     # Build listener from config
@@ -98,11 +110,26 @@ def main():
     if args.poll_interval:
         config.poll_interval = args.poll_interval
 
-    listener = config.create_listener()
+    # Mock mode: use terminal client instead of wxauto
+    mock_client = None
+    if args.mock:
+        mock_client = MockWeChatClient(default_chat=args.chat_name)
+        listener = WeChatListener(
+            api_base_url=config.api_url,
+            poll_interval=config.poll_interval,
+            max_response_length=config.max_response_len,
+            client=mock_client,
+        )
+    else:
+        listener = config.create_listener()
 
     # Interactive mode or env-configured targets
     if args.interactive:
         interactive_add_targets(listener)
+
+    # Mock mode: auto-add a default target if none configured
+    if args.mock and not listener._watch_targets:
+        listener.add_watch(args.chat_name, "tenant_001", f"user_{args.chat_name}")
 
     if not listener._watch_targets:
         print("No watch targets configured.")
@@ -111,15 +138,22 @@ def main():
         sys.exit(1)
 
     # Show configured targets
-    print(f"\nStarting listener with {len(listener._watch_targets)} target(s):")
+    mode = "MOCK (终端模拟)" if args.mock else "WXAUTO (微信桌面)"
+    print(f"\nStarting listener [{mode}] with {len(listener._watch_targets)} target(s):")
     for name, target in listener._watch_targets.items():
         print(f"  - {name} (tenant={target.tenant_id}, user={target.user_id})")
-    print(f"API: {listener.api_url}")
+    print(f"API: {listener.api_base_url}")
     print(f"Poll interval: {listener.poll_interval}s")
     print()
 
     # Run the listener (blocks)
-    listener.run()
+    try:
+        listener.run()
+    except KeyboardInterrupt:
+        print("\n[Runner] 收到中断信号，正在退出...")
+    finally:
+        if mock_client:
+            mock_client.stop()
 
 
 if __name__ == "__main__":

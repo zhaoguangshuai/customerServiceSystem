@@ -28,6 +28,10 @@
           <el-icon><EditPen /></el-icon>
           <span>提示词配置</span>
         </el-menu-item>
+        <el-menu-item index="/chat">
+          <el-icon><ChatLineRound /></el-icon>
+          <span>对话测试</span>
+        </el-menu-item>
         <el-menu-item index="/chatlogs">
           <el-icon><ChatDotRound /></el-icon>
           <span>对话日志</span>

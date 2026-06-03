@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     milvus_password: str = ""
     milvus_collection_know: str = "jewelry_knowledge"
     milvus_collection_memory: str = "user_chat_memory"
-    embedding_dim: int = 1536
+    embedding_dim: int = 1024
 
     # MySQL
     mysql_host: str = "mysql"
@@ -31,11 +31,11 @@ class Settings(BaseSettings):
     redis_password: str = ""
     redis_db: int = 0
 
-    # LLM
-    llm_model: str = "gpt-3.5-turbo"
-    llm_api_key: str = "sk-xxx"
-    llm_base_url: str = "https://api.openai.com/v1"
-    embedding_model: str = "text-embedding-ada-002"
+    # LLM (阿里云 DashScope - 通义千问)
+    llm_model: str = "qwen3.7-plus"
+    llm_api_key: str = ""
+    llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    embedding_model: str = "text-embedding-v3"
 
     # Business
     max_context_rounds: int = 10
@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 @lru_cache

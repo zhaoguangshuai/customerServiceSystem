@@ -64,13 +64,24 @@ export function listKnowledge(tenantId, category) {
   })
 }
 
-export function deleteKnowledge(docId) {
-  return request.delete(`/jewelry/knowledge/${docId}`)
+export function deleteKnowledge(docId, tenantId) {
+  return request.delete(`/jewelry/knowledge/${docId}`, { params: { tenant_id: tenantId } })
 }
 
 // --- Statistics ---
 export function getStatistics(tenantId) {
   return request.get('/admin/statistics', { params: { tenant_id: tenantId } })
+}
+
+// --- Chat ---
+export function sendChatMessage(tenantId, userId, sessionId, query) {
+  return request.post('/jewelry/chat', {
+    tenant_id: tenantId,
+    channel: 'admin',
+    user_id: userId,
+    session_id: sessionId,
+    query,
+  })
 }
 
 // --- Quality Inspection ---

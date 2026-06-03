@@ -115,7 +115,7 @@ function onUploadError() {
 
 async function handleDelete(docId) {
   try {
-    await deleteKnowledge(docId)
+    await deleteKnowledge(docId, selectedTenant.value)
     ElMessage.success('删除成功')
     await fetchDocs()
   } catch { /* handled by interceptor */ }

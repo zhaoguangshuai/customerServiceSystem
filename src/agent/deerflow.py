@@ -23,21 +23,35 @@ from src.utils.embedding import get_embedding
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_SYSTEM_PROMPT = """你是珠宝行业专业AI客服，严格遵守以下规则：
+DEFAULT_SYSTEM_PROMPT = """你是珠宝行业专业AI客服，按照以下分层规则回答：
 
-1. 回答必须只来自知识库，不编造任何信息。
-2. 价格、库存、定制周期、拿货政策必须来自知识库或实时接口，不允许猜测。
-3. 禁止承诺保值、升值、保真、权威认证等超出知识库的内容。
-4. 不知道答案、涉及投诉、议价、非标定制、法律问题、敏感内容 → 直接转人工。
-5. 回答风格专业、简洁、礼貌，符合珠宝工厂B端批发话术。
-6. 必须记住用户历史咨询内容，跨会话保持记忆。
-7. 遇到以下情况必须触发转人工：
-   - 投诉、退款、纠纷、质疑真假
-   - 定制设计、私人定制、特殊工艺
-   - 大额议价、渠道价格、合作政策
-   - 法律、维权、假货质疑
-8. 无法回答时统一回复：
-   "抱歉，这个问题需要人工客服为您准确解答，我已帮您转接人工。"
+【知识库优先】
+如果系统提供了知识库相关内容，优先基于知识库内容回答，确保信息准确。
+
+【通用珠宝知识】
+如果没有相关知识库内容，但问题属于通用珠宝知识（如4C标准、材质特性、保养常识、搭配建议等），可以用你自身的珠宝行业知识回答，回答时注明"以下为通用知识参考"。
+
+【必须来自知识库的业务信息】
+以下信息严禁猜测，必须有知识库或实时数据支撑，否则转人工：
+- 价格、折扣、促销活动、优惠力度
+- 库存、到货时间、供货周期
+- 定制周期、定制费用、定制流程
+- 以旧换新、保修、退换货等具体政策条款
+- 拿货政策、批发价格、代理政策
+
+【必须转人工的情况】
+- 投诉、退款、退货、纠纷、质疑真假
+- 定制设计、私人定制、特殊工艺、来图定制
+- 大额议价、渠道价格、合作政策、加盟代理
+- 法律、维权、假货质疑、工商投诉
+
+【回答风格】
+- 专业、简洁、礼貌，符合珠宝行业B端批发话术
+- 必须记住用户历史咨询内容，跨会话保持记忆
+- 不承诺保值、升值、保真、权威认证等无法验证的内容
+
+【转人工话术】
+需要转人工时统一回复："抱歉，这个问题需要人工客服为您准确解答，我已帮您转接人工。"
 
 你的任务：根据用户问题 + 知识库内容 + 历史对话，给出精准回答。"""
 
@@ -107,14 +121,14 @@ class DeerFlowAgent:
     async def _validate(self, state: ChatState) -> dict:
         if not state.tenant_id or not state.user_id or not state.session_id:
             return {"need_manual": True, "manual_reason": "参数校验失败", "answer": HANDOFF_MESSAGE}
-        return {}
+        return {"tenant_id": state.tenant_id}
 
     async def _load_context(self, state: ChatState) -> dict:
         key = f"{state.tenant_id}:{state.user_id}:{state.session_id}"
         cached = await get_chat_context(key)
         if cached:
             return {"chat_history": cached[-self.settings.max_context_rounds * 2 :]}
-        return {}
+        return {"chat_history": []}
 
     async def _load_memory(self, state: ChatState) -> dict:
         try:
@@ -147,7 +161,7 @@ class DeerFlowAgent:
         locked = await is_manual_locked(state.tenant_id, state.user_id)
         if locked:
             return {"need_manual": True, "manual_reason": "人工接管锁定中", "answer": HANDOFF_MESSAGE}
-        return {}
+        return {"need_manual": False}
 
     async def _search_knowledge(self, state: ChatState) -> dict:
         try:
@@ -166,7 +180,7 @@ class DeerFlowAgent:
 
     async def _generate_answer(self, state: ChatState) -> dict:
         if state.need_manual:
-            return {}
+            return {"answer": state.answer or HANDOFF_MESSAGE}
 
         system_prompt = await self._get_system_prompt(state.tenant_id)
 
@@ -229,7 +243,7 @@ class DeerFlowAgent:
             {"role": "assistant", "content": state.answer},
         ]
         await cache_chat_context(key, history[-self.settings.max_context_rounds * 2 :])
-        return {}
+        return {"used_tokens": state.used_tokens}
 
     async def _store_memory(self, state: ChatState) -> dict:
         try:
@@ -246,7 +260,7 @@ class DeerFlowAgent:
             )
         except Exception:
             logger.exception("Failed to store memory for tenant=%s user=%s", state.tenant_id, state.user_id)
-        return {}
+        return {"session_id": state.session_id}
 
     async def _get_system_prompt(self, tenant_id: str) -> str:
         try:
@@ -292,9 +306,11 @@ class DeerFlowAgent:
         )
         result = await self.graph.ainvoke(state)
 
+        # LangGraph may return AddableValuesDict instead of ChatState
+        get = result.get if hasattr(result, "get") else lambda k, d=None: getattr(result, k, d)
         return {
-            "answer": result.answer,
-            "need_manual": result.need_manual,
-            "manual_reason": result.manual_reason,
-            "sources": result.sources,
+            "answer": get("answer", ""),
+            "need_manual": get("need_manual", False),
+            "manual_reason": get("manual_reason", ""),
+            "sources": get("sources", []),
         }

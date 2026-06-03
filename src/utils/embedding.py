@@ -84,16 +84,21 @@ async def get_embeddings(texts: list[str]) -> list[list[float]]:
             uncached_indices.append(i)
             uncached_texts.append(text)
 
-    # Batch compute uncached embeddings
+    # Batch compute uncached embeddings (max 10 per request for DashScope)
     if uncached_texts:
         settings = get_settings()
         client = get_embedding_client()
-        response = await client.embeddings.create(
-            model=settings.embedding_model,
-            input=uncached_texts,
-        )
-        for i, (idx, item) in enumerate(zip(uncached_indices, response.data)):
-            results[idx] = item.embedding
-            await _cache_embedding(uncached_texts[i], item.embedding)
+        batch_size = 10
+        for batch_start in range(0, len(uncached_texts), batch_size):
+            batch_end = batch_start + batch_size
+            batch_texts = uncached_texts[batch_start:batch_end]
+            batch_indices = uncached_indices[batch_start:batch_end]
+            response = await client.embeddings.create(
+                model=settings.embedding_model,
+                input=batch_texts,
+            )
+            for i, (idx, item) in enumerate(zip(batch_indices, response.data)):
+                results[idx] = item.embedding
+                await _cache_embedding(batch_texts[i], item.embedding)
 
     return results  # type: ignore

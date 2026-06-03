@@ -17,9 +17,8 @@ QUERY_CACHE_TTL = 300  # 5 minutes
 class ChatRequest(BaseModel):
     tenant_id: str = Field(..., min_length=1, max_length=64, description="租户ID")
     channel: str = Field(
-        default="wechat",
-        pattern="^wechat$",
-        description="渠道，仅支持wechat",
+        default="web",
+        description="渠道：wechat/web/admin",
     )
     user_id: str = Field(..., min_length=1, max_length=100, description="用户ID")
     query: str = Field(..., min_length=1, max_length=2000, description="用户问题")

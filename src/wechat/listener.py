@@ -46,8 +46,9 @@ class WeChatListener:
         api_base_url: str = "http://localhost:8000",
         poll_interval: float = 2.0,
         max_response_length: int = 500,
+        client=None,
     ):
-        self.client = WeChatClient()
+        self.client = client or WeChatClient()
         self.api_base_url = api_base_url.rstrip("/")
         self.poll_interval = poll_interval
         self.max_response_length = max_response_length
@@ -186,6 +187,12 @@ class WeChatListener:
             while self._running:
                 self._poll_once()
                 self.client.cleanup_processed_ids()
+
+                # Mock client: check if user typed /quit
+                if hasattr(self.client, "should_stop") and self.client.should_stop:
+                    logger.info("Mock client quit signal received")
+                    break
+
                 time.sleep(self.poll_interval)
         except KeyboardInterrupt:
             logger.info("Listener interrupted by user")

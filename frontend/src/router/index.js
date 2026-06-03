@@ -37,6 +37,12 @@ const routes = [
         meta: { title: '提示词配置' },
       },
       {
+        path: 'chat',
+        name: 'Chat',
+        component: () => import('../views/chat/ChatView.vue'),
+        meta: { title: '对话测试' },
+      },
+      {
         path: 'chatlogs',
         name: 'ChatLogs',
         component: () => import('../views/chatlog/ChatLogView.vue'),
