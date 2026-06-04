@@ -1,5 +1,6 @@
 import hashlib
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, field_validator
@@ -16,7 +17,7 @@ QUERY_CACHE_TTL = 300  # 5 minutes
 
 class ChatRequest(BaseModel):
     tenant_id: str = Field(..., min_length=1, max_length=64, description="租户ID")
-    channel: str = Field(
+    channel: Literal["wechat", "web", "admin"] = Field(
         default="web",
         description="渠道：wechat/web/admin",
     )

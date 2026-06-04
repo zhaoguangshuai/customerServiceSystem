@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Business
     max_context_rounds: int = 10
     manual_lock_minutes: int = 30
+    knowledge_top_k: int = 3
+    knowledge_strong_threshold: float = 0.72
+    knowledge_weak_threshold: float = 0.50
 
     @property
     def mysql_url(self) -> str:

@@ -6,6 +6,7 @@ from src.config import Settings
 class TestSettings:
     def test_default_values(self):
         s = Settings(
+            _env_file=None,
             llm_api_key="test-key",
             mysql_password="test",
             redis_host="localhost",
@@ -14,13 +15,17 @@ class TestSettings:
         )
         assert s.app_host == "0.0.0.0"
         assert s.app_port == 8000
-        assert s.llm_model == "gpt-3.5-turbo"
-        assert s.embedding_dim == 1536
+        assert s.llm_model == "qwen3.7-plus"
+        assert s.embedding_dim == 1024
         assert s.max_context_rounds == 10
         assert s.manual_lock_minutes == 30
+        assert s.knowledge_top_k == 3
+        assert s.knowledge_strong_threshold == 0.72
+        assert s.knowledge_weak_threshold == 0.50
 
     def test_mysql_url_property(self):
         s = Settings(
+            _env_file=None,
             llm_api_key="test-key",
             mysql_host="dbhost",
             mysql_port=3307,
@@ -37,6 +42,7 @@ class TestSettings:
 
     def test_redis_url_no_password(self):
         s = Settings(
+            _env_file=None,
             llm_api_key="test-key",
             redis_host="redishost",
             redis_port=6380,
@@ -49,6 +55,7 @@ class TestSettings:
 
     def test_redis_url_with_password(self):
         s = Settings(
+            _env_file=None,
             llm_api_key="test-key",
             redis_host="redishost",
             redis_port=6380,
@@ -62,6 +69,7 @@ class TestSettings:
 
     def test_milvus_collections(self):
         s = Settings(
+            _env_file=None,
             llm_api_key="test-key",
             mysql_host="localhost",
             mysql_password="test",

@@ -57,6 +57,23 @@ DEFAULT_SYSTEM_PROMPT = """你是珠宝行业专业AI客服，按照以下分层
 
 HANDOFF_MESSAGE = "抱歉，这个问题需要人工客服为您准确解答，我已帮您转接人工。"
 
+KNOWLEDGE_HIT_STRONG = "strong"
+KNOWLEDGE_HIT_WEAK = "weak"
+KNOWLEDGE_HIT_NONE = "none"
+
+KNOWLEDGE_REQUIRED_INTENTS = {
+    Intent.PRICE_INQUIRY,
+}
+
+KNOWLEDGE_REQUIRED_KEYWORDS = (
+    "价格", "多少钱", "报价", "什么价", "几钱", "价位", "克价", "工费", "金价",
+    "库存", "现货", "有货", "没货", "到货", "补货", "供货", "货期",
+    "活动", "促销", "优惠", "折扣", "满减", "赠品",
+    "退换", "退货", "退款", "换货", "维修", "质量问题", "保修", "质保", "售后政策",
+    "拿货", "批发", "代理", "加盟", "合作政策",
+    "起订", "交期", "周期", "定制费用", "定制流程",
+)
+
 
 @dataclass
 class ChatState:
@@ -69,11 +86,25 @@ class ChatState:
     need_manual: bool = False
     manual_reason: str = ""
     knowledge_results: list = field(default_factory=list)
+    knowledge_hit_type: str = KNOWLEDGE_HIT_NONE
+    knowledge_score: float = 0.0
     memory_results: list = field(default_factory=list)
     chat_history: list = field(default_factory=list)
     answer: str = ""
     sources: list = field(default_factory=list)
     used_tokens: int = 0
+
+
+def _is_knowledge_required_query(query: str, intent: str) -> bool:
+    try:
+        parsed_intent = Intent(intent)
+    except ValueError:
+        parsed_intent = Intent.UNKNOWN
+
+    if parsed_intent in KNOWLEDGE_REQUIRED_INTENTS:
+        return True
+
+    return any(keyword in query for keyword in KNOWLEDGE_REQUIRED_KEYWORDS)
 
 
 class DeerFlowAgent:
@@ -168,15 +199,54 @@ class DeerFlowAgent:
             query_embedding = state.query_embedding
             if query_embedding is None:
                 query_embedding = await get_embedding(state.query)
-            knowledge_results = await asyncio.to_thread(
+            raw_results = await asyncio.to_thread(
                 self.milvus.search_knowledge,
-                state.tenant_id, query_embedding, top_k=3,
+                state.tenant_id, query_embedding, top_k=self.settings.knowledge_top_k,
             )
+            max_score = max((float(r.get("score") or 0) for r in raw_results), default=0.0)
+            knowledge_results = [
+                r for r in raw_results
+                if float(r.get("score") or 0) >= self.settings.knowledge_weak_threshold
+            ]
+
+            if max_score >= self.settings.knowledge_strong_threshold:
+                hit_type = KNOWLEDGE_HIT_STRONG
+            elif max_score >= self.settings.knowledge_weak_threshold:
+                hit_type = KNOWLEDGE_HIT_WEAK
+            else:
+                hit_type = KNOWLEDGE_HIT_NONE
+
+            if hit_type == KNOWLEDGE_HIT_NONE and _is_knowledge_required_query(state.query, state.intent):
+                return {
+                    "knowledge_results": [],
+                    "knowledge_hit_type": hit_type,
+                    "knowledge_score": max_score,
+                    "sources": [],
+                    "need_manual": True,
+                    "manual_reason": "知识库未命中业务问题",
+                    "answer": HANDOFF_MESSAGE,
+                }
+
             sources = [r["source"] for r in knowledge_results]
-            return {"knowledge_results": knowledge_results, "sources": sources}
+            return {
+                "knowledge_results": knowledge_results,
+                "knowledge_hit_type": hit_type,
+                "knowledge_score": max_score,
+                "sources": sources,
+            }
         except Exception:
             logger.exception("Failed to search knowledge for tenant=%s", state.tenant_id)
-            return {"knowledge_results": []}
+            if _is_knowledge_required_query(state.query, state.intent):
+                return {
+                    "knowledge_results": [],
+                    "knowledge_hit_type": KNOWLEDGE_HIT_NONE,
+                    "knowledge_score": 0.0,
+                    "sources": [],
+                    "need_manual": True,
+                    "manual_reason": "知识库检索失败",
+                    "answer": HANDOFF_MESSAGE,
+                }
+            return {"knowledge_results": [], "knowledge_hit_type": KNOWLEDGE_HIT_NONE, "knowledge_score": 0.0}
 
     async def _generate_answer(self, state: ChatState) -> dict:
         if state.need_manual:
@@ -193,7 +263,17 @@ class DeerFlowAgent:
         messages = [{"role": "system", "content": system_prompt}]
 
         if knowledge_text:
-            messages.append({"role": "system", "content": f"知识库相关内容:\n{knowledge_text}"})
+            if state.knowledge_hit_type == KNOWLEDGE_HIT_WEAK:
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "知识库弱相关参考内容，仅可作为辅助参考；"
+                        "不得据此编造价格、库存、活动、政策、交期等业务信息。\n"
+                        f"{knowledge_text}"
+                    ),
+                })
+            else:
+                messages.append({"role": "system", "content": f"知识库强相关命中内容:\n{knowledge_text}"})
         if memory_text:
             messages.append({"role": "system", "content": f"用户历史记忆:\n{memory_text}"})
 
